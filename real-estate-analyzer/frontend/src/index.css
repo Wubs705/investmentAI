@@ -1,0 +1,266 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #006AFF;
+  --color-primary-dark: #0059D6;
+  --color-primary-light: rgba(0, 106, 255, 0.08);
+  --color-primary-foreground: #FFFFFF;
+  --color-accent: #008A05;
+  --color-accent-light: rgba(0, 138, 5, 0.08);
+  --color-accent-foreground: #FFFFFF;
+  --color-warning: #E8850C;
+  --color-warning-light: rgba(232, 133, 12, 0.08);
+  --color-danger: #D32F2F;
+  --color-destructive: #D32F2F;
+  --color-dark: #2A2A33;
+  --color-text-primary: #2A2A33;
+  --color-text-secondary: #585858;
+  --color-text-muted: #8C8C8C;
+  --color-bg: #FFFFFF;
+  --color-bg-light: #F8F9FB;
+  --color-background: #FFFFFF;
+  --color-foreground: #2A2A33;
+  --color-secondary: #F0F0F0;
+  --color-secondary-foreground: #2A2A33;
+  --color-border: #E0E0E0;
+  --color-input: #CCCCCC;
+  --color-ring: #006AFF;
+  --color-surface: #FFFFFF;
+  --color-badge-bg: #F0F0F0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #2A2A33;
+  background: #FFFFFF;
+  min-height: 100vh;
+}
+
+/* Scrollbar — light theme */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #F5F5F5; }
+::-webkit-scrollbar-thumb { background: #CCCCCC; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #AAAAAA; }
+
+/* ============================================
+   ZILLOW-STYLE UTILITY CLASSES
+   ============================================ */
+
+/* Card — clean white with subtle shadow */
+.zillow-card {
+  background: #FFFFFF;
+  border: 1px solid #E0E0E0;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+.zillow-card-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.zillow-card-hover:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Nav — white with bottom border */
+.zillow-nav {
+  background: #FFFFFF;
+  border-bottom: 1px solid #E0E0E0;
+}
+
+/* Input — bordered, rounded */
+.zillow-input {
+  background: #FFFFFF;
+  border: 1px solid #CCCCCC;
+  border-radius: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.zillow-input:focus-within {
+  border-color: #006AFF;
+  box-shadow: 0 0 0 3px rgba(0, 106, 255, 0.12);
+}
+
+/* Chip — pill-shaped filter */
+.zillow-chip {
+  background: #FFFFFF;
+  border: 1px solid #CCCCCC;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2A2A33;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.zillow-chip:hover {
+  background: #F0F0F0;
+}
+.zillow-chip.active {
+  background: #006AFF;
+  color: #FFFFFF;
+  border-color: #006AFF;
+}
+
+/* Badge — status labels */
+.zillow-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.zillow-badge-green {
+  background: #008A05;
+  color: #FFFFFF;
+}
+.zillow-badge-red {
+  background: #D32F2F;
+  color: #FFFFFF;
+}
+.zillow-badge-blue {
+  background: #006AFF;
+  color: #FFFFFF;
+}
+.zillow-badge-gray {
+  background: #F0F0F0;
+  color: #585858;
+}
+
+/* Banner — info strip */
+.zillow-banner {
+  background: #F0F6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #006AFF;
+}
+
+/* Section panel — white with header */
+.zillow-section {
+  background: #FFFFFF;
+  border: 1px solid #E0E0E0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.zillow-section-header {
+  background: #F8F9FB;
+  border-bottom: 1px solid #E0E0E0;
+  padding: 12px 16px;
+}
+
+/* ============================================
+   SCORE BADGES — CLEAN FLAT
+   ============================================ */
+
+.score-excellent {
+  background: #008A05;
+  color: #FFFFFF;
+}
+.score-good {
+  background: #006AFF;
+  color: #FFFFFF;
+}
+.score-fair {
+  background: #E8850C;
+  color: #FFFFFF;
+}
+.score-poor {
+  background: #D32F2F;
+  color: #FFFFFF;
+}
+
+/* ============================================
+   STAT CARDS — Clean KPI
+   ============================================ */
+
+.stat-card {
+  background: #FFFFFF;
+  border: 1px solid #E0E0E0;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+/* ============================================
+   BACKWARD COMPAT ALIASES
+   Map old glass classes to new zillow classes
+   ============================================ */
+
+.glass-panel { background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 12px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06); }
+.glass-panel-hover { transition: box-shadow 0.2s ease; }
+.glass-panel-hover:hover { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1); }
+.glass-card { background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 12px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06); }
+.glass-card-hover { transition: box-shadow 0.2s ease; }
+.glass-card-hover:hover { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1); }
+.glass-nav { background: #FFFFFF; border-bottom: 1px solid #E0E0E0; }
+.glass-input { background: #FFFFFF; border: 1px solid #CCCCCC; border-radius: 8px; transition: border-color 0.2s ease; }
+.glass-input:focus-within { border-color: #006AFF; box-shadow: 0 0 0 3px rgba(0, 106, 255, 0.12); }
+.glass-chip { background: #F0F0F0; border: 1px solid #E0E0E0; border-radius: 20px; }
+.glass-chip:hover { background: #E8E8E8; }
+.glass-banner { background: #F0F6FF; border: 1px solid #BFDBFE; border-radius: 8px; }
+.glass-surface { background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 8px; overflow: hidden; }
+.glass-divider { height: 1px; background: #E0E0E0; }
+.glass-page-bg { position: relative; z-index: 1; min-height: 100vh; background: #FFFFFF; }
+
+/* Metal stat -> clean stat */
+.metal-stat { background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 12px; }
+.metal-accent-green { background: rgba(0, 138, 5, 0.06); border: 1px solid rgba(0, 138, 5, 0.15); border-radius: 8px; }
+.metal-accent-blue { background: rgba(0, 106, 255, 0.06); border: 1px solid rgba(0, 106, 255, 0.15); border-radius: 8px; }
+.metal-accent-amber { background: rgba(232, 133, 12, 0.06); border: 1px solid rgba(232, 133, 12, 0.15); border-radius: 8px; }
+
+/* Glow container -> clean bordered */
+.glow-container { position: relative; overflow: hidden; border: 1px solid #BFDBFE; border-radius: 12px; background: #F8FBFF; }
+
+/* Pro badge */
+.badge-pro {
+  background: #F0F6FF;
+  border: 1px solid #BFDBFE;
+  color: #006AFF;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+}
+
+/* ============================================
+   SELECT DROPDOWNS
+   ============================================ */
+select option {
+  background: #FFFFFF;
+  color: #2A2A33;
+}
+
+/* Chart tooltip — light theme */
+.recharts-default-tooltip {
+  background: #FFFFFF !important;
+  border: 1px solid #E0E0E0 !important;
+  border-radius: 8px !important;
+  color: #2A2A33 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Photo overlay gradient */
+.photo-overlay {
+  background: linear-gradient(180deg, transparent 40%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* ============================================
+   PAGE TRANSITIONS
+   ============================================ */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+.page-transition-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+.page-transition-exit-active {
+  opacity: 0;
+  transform: translateY(-8px);
+}
