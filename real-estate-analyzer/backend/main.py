@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from backend.auth import get_current_user
+from backend.config import settings
 from backend.models.database import async_session, get_supabase, init_db
 from backend.routers import analysis, market, search
 from backend.testmode import TestModeMiddleware
@@ -27,7 +28,7 @@ app = FastAPI(
 app.add_middleware(TestModeMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

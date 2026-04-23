@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     model_assumptions: str = "claude-haiku-4-5-20251001"
     model_narrative: str = "claude-sonnet-4-6"
 
+    # CORS — comma-separated list of allowed origins (e.g. "https://app.example.com")
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
     # App config
     cache_dir: str = "./cache"
     cache_ttl_hours: int = 24

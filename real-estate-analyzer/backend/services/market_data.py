@@ -40,12 +40,13 @@ DEFAULT_UNEMPLOYMENT = 4.0
 # FRED API (Federal Reserve Economic Data)
 # ---------------------------------------------------------------------------
 
-async def _fetch_fred_mortgage_rate(client: httpx.AsyncClient) -> float:
+async def _fetch_fred_mortgage_rate() -> float:
     """Return current 30-year fixed mortgage rate (%).
 
     No FRED API key is configured, so this returns the default estimate
     immediately. If a fred_api_key is added to settings in the future,
-    this function should be updated to make a real API call.
+    this function should be updated to accept an httpx.AsyncClient and
+    make a real API call.
     """
     cache_key = "mortgage_rate_30yr"
     cached = cache_service.get(cache_key)
@@ -130,10 +131,6 @@ async def _fetch_hud_fmr(
         return cached
 
     try:
-        headers = {}
-        if settings.attom_api_key:  # HUD API uses separate token; skip if unavailable
-            pass
-
         resp = await client.get(
             f"{HUD_BASE}/fmr/statedata/{state_code.upper()}",
             timeout=10,
@@ -268,7 +265,7 @@ class MarketDataService:
 
         async with httpx.AsyncClient(timeout=12, follow_redirects=True) as client:
             mortgage_rate, census_data, hud_data = await asyncio.gather(
-                _fetch_fred_mortgage_rate(client),
+                _fetch_fred_mortgage_rate(),
                 _fetch_census_acs(location.state_code, client),
                 _fetch_hud_fmr(location.state_code, client),
                 return_exceptions=True,
