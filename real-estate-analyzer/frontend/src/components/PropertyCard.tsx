@@ -46,6 +46,46 @@ function scoreLabel(score: number): { color: string; grade: string } {
   return { color: '#D32F2F', grade: 'D' }
 }
 
+// Market heat thresholds per spec — distinct from the investment-score colors
+// so users can read "hot market" vs "good deal" independently.
+function heatLabel(score: number): { color: string; label: string } {
+  if (score >= 80) return { color: '#D32F2F', label: 'Hot' }
+  if (score >= 60) return { color: '#E8850C', label: 'Warm' }
+  if (score >= 40) return { color: '#E0B019', label: 'Mild' }
+  return { color: '#7A8290', label: 'Cool' }
+}
+
+// Per-component bucket labels keep the tooltip readable without a legend.
+function componentLabel(name: string, value: number): string {
+  if (value >= 70) {
+    return name === 'unemployment'
+      ? 'low'
+      : name === 'dom'
+        ? 'fast'
+        : 'strong'
+  }
+  if (value >= 40) return 'moderate'
+  return name === 'unemployment'
+    ? 'high'
+    : name === 'dom'
+      ? 'slow'
+      : 'weak'
+}
+
+const HEAT_COMPONENT_LABELS: Record<string, string> = {
+  rent_growth: 'Rent growth',
+  unemployment: 'Unemployment',
+  population: 'Population',
+  dom: 'Days on market',
+}
+
+function buildHeatTooltip(components: Record<string, number> | undefined): string {
+  if (!components) return 'Market heat score — combines rent growth, unemployment, population, and days-on-market.'
+  return Object.entries(components)
+    .map(([k, v]) => `${HEAT_COMPONENT_LABELS[k] ?? k}: ${componentLabel(k, v)}`)
+    .join(' · ')
+}
+
 function getAiInsight(analysis: any): string | null {
   const ai = analysis?.ai_analysis
   if (!ai?.ai_available) return null
@@ -68,6 +108,10 @@ export default function PropertyCard({ result, goal, onClick, isHovered, onMouse
   const { listing, analysis, score } = result
   const s: number = score?.overall_score ?? 0
   const { color: scoreColor } = scoreLabel(s)
+  const heatScore: number | null = typeof score?.heat_score === 'number' ? score.heat_score : null
+  const heatComponents: Record<string, number> | undefined = score?.heat_score_components
+  const heatBadge = heatScore != null ? heatLabel(heatScore) : null
+  const heatTooltip = heatScore != null ? `Market Heat ${heatScore} — ${buildHeatTooltip(heatComponents)}` : ''
   const metricFn = GOAL_METRICS[goal] || GOAL_METRICS.rental
   const metrics = metricFn(analysis)
   const aiInsight = getAiInsight(analysis)
@@ -109,6 +153,18 @@ export default function PropertyCard({ result, goal, onClick, isHovered, onMouse
 
         {/* Heart + score */}
         <div className="absolute top-2 right-2 flex items-center gap-1.5">
+          {/* Heat badge — sits left of the investment score so the eye reads
+              "market context" before "deal quality". */}
+          {heatBadge && (
+            <span
+              className="text-white text-xs font-bold px-2 py-0.5 rounded"
+              style={{ background: heatBadge.color }}
+              title={heatTooltip}
+              data-testid="heat-badge"
+            >
+              {heatBadge.label} {heatScore}
+            </span>
+          )}
           {/* Score badge */}
           <span
             className="text-white text-xs font-bold px-2 py-0.5 rounded"

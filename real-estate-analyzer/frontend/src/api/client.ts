@@ -34,4 +34,18 @@ apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) =>
   return config
 })
 
+/**
+ * Request the Sonnet-generated investment narrative for a property.
+ * Fires against the on-demand endpoint so we only pay for narratives the
+ * user actually asks to read. Results are cached server-side for 24h.
+ */
+export async function fetchNarrative(propertyId: string, goal: string) {
+  const response = await apiClient.post(
+    `/analysis/narrative/${propertyId}`,
+    null,
+    { params: { goal } },
+  )
+  return response.data
+}
+
 export default apiClient

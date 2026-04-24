@@ -14,6 +14,8 @@ from backend.config import settings
 from backend.models.schemas import (
     Demographics,
     EconomicIndicators,
+    HeatScore,
+    InvestmentGoal,
     MarketSnapshot,
     NormalizedLocation,
     PriceTrends,
@@ -64,30 +66,30 @@ async def _fetch_fred_mortgage_rate() -> float:
 # Census Bureau API
 # ---------------------------------------------------------------------------
 
-async def _fetch_census_acs(
+CENSUS_CURRENT_VINTAGE = 2022
+CENSUS_PREVIOUS_VINTAGE = 2021
+
+
+async def _fetch_census_acs_year(
     state_code: str,
+    year: int,
     client: httpx.AsyncClient,
 ) -> dict:
-    """
-    Fetch ACS 5-year estimates for median income, population, unemployment.
-    Uses the public Census API (no key required for most queries).
-    """
-    cache_key = f"census:acs:{state_code.upper()}"
+    """Fetch ACS 5-year estimates for one vintage year (state level)."""
+    cache_key = f"census:acs:{year}:{state_code.upper()}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
 
-    # Map state abbreviation to FIPS code
     state_fips = _state_abbr_to_fips(state_code)
     if not state_fips:
         return {}
 
     try:
-        # ACS 5-year estimates, state level
         variables = "B19013_001E,B01003_001E,B23025_005E,B23025_003E"
         key_param = f"&key={settings.census_api_key}" if settings.census_api_key else ""
         url = (
-            f"{CENSUS_BASE}/2022/acs/acs5"
+            f"{CENSUS_BASE}/{year}/acs/acs5"
             f"?get={variables}&for=state:{state_fips}{key_param}"
         )
         resp = await client.get(url, timeout=12)
@@ -106,14 +108,53 @@ async def _fetch_census_acs(
                 return result
         else:
             logger.warning(
-                "Census API returned status %d for state %s",
+                "Census API returned status %d for state %s vintage %d",
                 resp.status_code,
                 state_code,
+                year,
             )
     except Exception as exc:
-        logger.warning("Census API request failed for state %s: %s", state_code, exc)
+        logger.warning(
+            "Census API request failed for state %s vintage %d: %s",
+            state_code,
+            year,
+            exc,
+        )
 
     return {}
+
+
+async def _fetch_census_acs(
+    state_code: str,
+    client: httpx.AsyncClient,
+) -> dict:
+    """Fetch ACS data for the current vintage plus a YoY population delta.
+
+    The previous-vintage call is the cheap way to surface population growth —
+    BLS doesn't ship monthly state-level population, and the FRED state series
+    needs an API key. Two ACS5 reads (each cached 7 days) give us the same
+    signal for free.
+    """
+    current, previous = await asyncio.gather(
+        _fetch_census_acs_year(state_code, CENSUS_CURRENT_VINTAGE, client),
+        _fetch_census_acs_year(state_code, CENSUS_PREVIOUS_VINTAGE, client),
+        return_exceptions=True,
+    )
+    if isinstance(current, Exception):
+        logger.warning("Census current-vintage fetch failed: %s", current)
+        current = {}
+    if isinstance(previous, Exception):
+        logger.warning("Census previous-vintage fetch failed: %s", previous)
+        previous = {}
+
+    result = dict(current) if current else {}
+
+    cur_pop = (current or {}).get("population")
+    prev_pop = (previous or {}).get("population")
+    if cur_pop and prev_pop and prev_pop > 0:
+        result["population_growth_pct"] = round((cur_pop - prev_pop) / prev_pop * 100, 2)
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -347,10 +388,18 @@ class MarketDataService:
         labor_force = (census_data or {}).get("labor_force") or 1
         unemp_rate = round((unemployed / labor_force) * 100, 1) if labor_force > 0 else DEFAULT_UNEMPLOYMENT
 
+        # YoY population growth from the second ACS vintage; falls back to a
+        # conservative national estimate when either year is missing so the
+        # heat-score still resolves a value.
+        pop_growth = (census_data or {}).get("population_growth_pct")
+        if pop_growth is None:
+            pop_growth = 0.5
+            warnings.append("Population growth is estimated (no ACS YoY pair available).")
+
         demographics = Demographics(
             median_household_income=median_income,
             population=population,
-            population_growth_pct=0.5,  # US average population growth (2024-2025 estimate)
+            population_growth_pct=pop_growth,
             unemployment_rate_pct=unemp_rate if census_data else DEFAULT_UNEMPLOYMENT,
         )
 
@@ -422,3 +471,120 @@ def _state_abbr_to_fips(abbr: str) -> str | None:
 
 
 market_data_service = MarketDataService()
+
+
+# ---------------------------------------------------------------------------
+# Market heat score (P4)
+# ---------------------------------------------------------------------------
+#
+# Normalizers map each market signal to 0–100 using fixed thresholds so the
+# score is reproducible across runs and deployments. Thresholds are documented
+# inline rather than tuned per-market — the goal is consistent ranking, not
+# absolute precision. Tweak together if the buckets ever feel miscalibrated.
+
+HEAT_DEFAULT_NEUTRAL = 50  # used when an input is missing entirely
+
+
+def _normalize_rent_growth(pct: float | None) -> int:
+    """Higher = stronger market. 0% → 0, 8%+ → 100, linear between."""
+    if pct is None:
+        return HEAT_DEFAULT_NEUTRAL
+    if pct <= 0:
+        return 0
+    if pct >= 8:
+        return 100
+    return int(round((pct / 8.0) * 100))
+
+
+def _normalize_unemployment(pct: float | None) -> int:
+    """Inverted — lower = stronger. ≤3% → 100, ≥8% → 0, linear between."""
+    if pct is None:
+        return HEAT_DEFAULT_NEUTRAL
+    if pct <= 3.0:
+        return 100
+    if pct >= 8.0:
+        return 0
+    return int(round(100 - ((pct - 3.0) / 5.0) * 100))
+
+
+def _normalize_population_growth(pct: float | None) -> int:
+    """Higher = stronger. <0 → 0, 0% → 30, 1% → 60, ≥2% → 100."""
+    if pct is None:
+        return HEAT_DEFAULT_NEUTRAL
+    if pct < 0:
+        return 0
+    if pct >= 2.0:
+        return 100
+    if pct >= 1.0:
+        return int(round(60 + (pct - 1.0) * 40))
+    return int(round(30 + pct * 30))
+
+
+def _normalize_dom(days: int | None) -> int:
+    """Inverted — lower = stronger. ≤20d → 100, 45d → 60, ≥90d → 0."""
+    if days is None:
+        return HEAT_DEFAULT_NEUTRAL
+    if days <= 20:
+        return 100
+    if days >= 90:
+        return 0
+    if days <= 45:
+        return int(round(100 - ((days - 20) / 25.0) * 40))
+    return int(round(60 - ((days - 45) / 45.0) * 60))
+
+
+# Per-spec weights. Each row sums to 1.0; used to weight the four normalized
+# sub-scores into the final 0–100 heat score.
+GOAL_HEAT_WEIGHTS: dict[InvestmentGoal, dict[str, float]] = {
+    InvestmentGoal.RENTAL: {
+        "rent_growth": 0.35, "unemployment": 0.25, "population": 0.20, "dom": 0.20,
+    },
+    InvestmentGoal.LONG_TERM: {
+        "rent_growth": 0.30, "unemployment": 0.20, "population": 0.35, "dom": 0.15,
+    },
+    InvestmentGoal.FIX_AND_FLIP: {
+        "rent_growth": 0.10, "unemployment": 0.25, "population": 0.15, "dom": 0.50,
+    },
+    InvestmentGoal.SHORT_TERM_RENTAL: {
+        "rent_growth": 0.35, "unemployment": 0.15, "population": 0.20, "dom": 0.30,
+    },
+    InvestmentGoal.HOUSE_HACK: {
+        "rent_growth": 0.30, "unemployment": 0.35, "population": 0.20, "dom": 0.15,
+    },
+}
+
+
+def calculate_heat_score(snapshot: MarketSnapshot, goal: InvestmentGoal) -> HeatScore:
+    """Combine four normalized market signals into a 0–100 heat score.
+
+    Pure function over the snapshot; cheap, deterministic, and easy to test.
+    Use `get_heat_score` for the cached wrapper.
+    """
+    components = {
+        "rent_growth": _normalize_rent_growth(snapshot.rental_market.rent_growth_yoy_pct),
+        "unemployment": _normalize_unemployment(snapshot.demographics.unemployment_rate_pct),
+        "population": _normalize_population_growth(snapshot.demographics.population_growth_pct),
+        "dom": _normalize_dom(snapshot.economic_indicators.median_days_on_market),
+    }
+    weights = GOAL_HEAT_WEIGHTS.get(goal, GOAL_HEAT_WEIGHTS[InvestmentGoal.RENTAL])
+    raw = sum(components[k] * weights[k] for k in components)
+    score = max(0, min(100, int(round(raw))))
+    return HeatScore(score=score, components=components)
+
+
+def get_heat_score(snapshot: MarketSnapshot, goal: InvestmentGoal) -> HeatScore:
+    """Cached wrapper. Key includes city/state/goal so the same market analyzed
+    for different goals doesn't collide."""
+    loc = snapshot.location
+    if loc is None:
+        return calculate_heat_score(snapshot, goal)
+    key = f"heat_score:{loc.city.lower()}:{loc.state_code.lower()}:{goal.value}"
+    cached = cache_service.get(key)
+    if cached is not None:
+        try:
+            return HeatScore(**cached)
+        except Exception:
+            pass  # fall through to recompute on a stale-shape cache hit
+    score = calculate_heat_score(snapshot, goal)
+    cache_service.set(key, score.model_dump(), ttl=86400)
+    return score

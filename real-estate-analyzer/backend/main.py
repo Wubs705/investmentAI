@@ -7,7 +7,7 @@ from sqlalchemy import text
 from backend.auth import get_current_user
 from backend.config import settings
 from backend.models.database import async_session, get_supabase, init_db
-from backend.routers import analysis, market, search
+from backend.routers import analysis, market, narrative, search
 from backend.testmode import TestModeMiddleware
 
 
@@ -39,6 +39,7 @@ app.add_middleware(
 _protected = [Depends(get_current_user)]
 app.include_router(search.router, dependencies=_protected)
 app.include_router(analysis.router, dependencies=_protected)
+app.include_router(narrative.router, dependencies=_protected)
 app.include_router(market.router)
 
 

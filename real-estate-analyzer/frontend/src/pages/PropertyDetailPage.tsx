@@ -296,7 +296,7 @@ export default function PropertyDetailPage() {
             )}
 
             {activeTab === 'investment' && (
-              <InvestmentMetrics analysis={analysis} goal={goal} market={market} listing={listing} />
+              <InvestmentMetrics analysis={analysis} goal={goal} market={market} listing={listing} score={s} />
             )}
 
             {activeTab === 'comps' && (

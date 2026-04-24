@@ -18,9 +18,15 @@ from backend.services.ai_service import ai_service
 from backend.services.analysis_engine import analysis_engine
 from backend.services.comparables import comparables_service
 from backend.services.geocoding import geocoding_service
-from backend.services.market_data import market_data_service
+from backend.services.market_data import get_heat_score, market_data_service
 from backend.services.property_search import property_search_service
+from backend.utils.cache import cache_service
 from backend.utils.scoring import calculate_investment_score
+
+# Short-lived rehydration cache so the on-demand narrative endpoint can
+# reconstruct a search result without a DB round-trip. Lets anonymous users
+# (no Supabase persistence) click "Deep Analysis" after a search.
+ANALYSIS_CONTEXT_TTL = 3600  # 1 hour
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["search"])
@@ -94,6 +100,10 @@ async def search_properties(
 
     market = await market_data_service.get_market_snapshot(location)
 
+    # Heat score is per (market, goal) — compute once and reuse for every
+    # property in this search rather than recomputing inside analyze_one.
+    heat = get_heat_score(market, criteria.investment_goal)
+
     price_per_sqft = market_data_service.get_price_per_sqft(market)
     median_rent = market_data_service.get_median_rent(market, beds=2)
 
@@ -112,8 +122,6 @@ async def search_properties(
             warnings=search_warnings + ["No listings found matching your criteria."],
         )
 
-    NARRATIVE_SCORE_THRESHOLD = 40
-
     async def analyze_one(listing):
         comps = await comparables_service.find_comps(
             listing, market, goal=criteria.investment_goal.value
@@ -131,18 +139,17 @@ async def search_properties(
             down_pct=criteria.down_payment_pct,
             ai_assumptions=assumptions,
         )
-        score = calculate_investment_score(listing, analysis)
+        score = calculate_investment_score(
+            listing,
+            analysis,
+            heat_score=heat.score,
+            heat_components=heat.components,
+        )
 
-        if score.overall_score >= NARRATIVE_SCORE_THRESHOLD:
-            analysis.ai_analysis = await ai_service.generate_narrative(
-                listing=listing,
-                analysis=analysis,
-                market=market,
-                goal=criteria.investment_goal,
-                assumptions=assumptions,
-            )
-        else:
-            analysis.ai_analysis = AIAnalysis(assumptions=assumptions, ai_available=False)
+        # The expensive Sonnet narrative is now fired on demand via
+        # POST /api/analysis/narrative/{property_id}. We still attach the
+        # Haiku assumptions so the downstream endpoint can rehydrate.
+        analysis.ai_analysis = AIAnalysis(assumptions=assumptions, ai_available=False)
 
         return PropertyResult(listing=listing, analysis=analysis, score=score, comps=comps)
 
@@ -159,6 +166,23 @@ async def search_properties(
 
     valid_results.sort(key=lambda r: r.score.overall_score if r.score else 0, reverse=True)
     valid_results = valid_results[:20]
+
+    # Populate short-TTL rehydration cache for the on-demand narrative endpoint.
+    # Keyed on (property_id, goal) so the same listing analyzed for different
+    # goals doesn't collide.
+    goal_value = criteria.investment_goal.value
+    for result in valid_results:
+        cache_service.set(
+            f"analysis_context:{result.listing.id}:{goal_value}",
+            {
+                "listing": result.listing,
+                "analysis": result.analysis,
+                "score": result.score.overall_score if result.score else 0,
+                "comps": result.comps,
+                "market": market,
+            },
+            ttl=ANALYSIS_CONTEXT_TTL,
+        )
 
     # Persist to Supabase when we have an authenticated user
     if user_id:

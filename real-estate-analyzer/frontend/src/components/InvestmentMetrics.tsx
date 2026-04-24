@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { Sparkles } from 'lucide-react'
+import { fetchNarrative } from '../api/client'
 import { formatCurrency, signalColor } from '../utils/formatters'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -158,13 +160,98 @@ interface InvestmentMetricsProps {
   goal: string
   market: any
   listing: any
+  score?: number
 }
 
-export default function InvestmentMetrics({ analysis, goal, market, listing }: InvestmentMetricsProps) {
+function DeepAnalysisCTA({
+  score,
+  onGenerate,
+  loading,
+  error,
+}: {
+  score: number | null
+  onGenerate: () => void
+  loading: boolean
+  error: string | null
+}) {
+  const belowThreshold = score != null && score < 40
+  return (
+    <div className="border border-blue-200 rounded-xl overflow-hidden bg-blue-50/30">
+      <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
+        <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+          <span>AI Investment Analysis</span>
+          <span className="text-amber-500 text-base">✦</span>
+          <span className="text-xs font-normal text-text-muted">Powered by Claude</span>
+        </h3>
+      </div>
+      <div className="px-4 py-6 bg-white flex flex-col items-center text-center gap-3">
+        {loading ? (
+          <>
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="text-sm text-text-secondary">Generating deep analysis… (3–5 seconds)</div>
+          </>
+        ) : (
+          <>
+            <Sparkles className="w-7 h-7 text-primary" />
+            <div className="text-sm text-text-secondary max-w-md">
+              Get a broker-style investment memo for this property — narrative, key strengths, red
+              flags, and market outlook, grounded in the engine-calculated metrics above.
+            </div>
+            {belowThreshold && (
+              <div className="text-xs text-text-muted">
+                Score {score} is below the deep-analysis threshold (40). Reserved for higher-quality
+                deals.
+              </div>
+            )}
+            {error && (
+              <div className="text-xs text-danger">{error}</div>
+            )}
+            <button
+              onClick={onGenerate}
+              disabled={belowThreshold}
+              className="inline-flex items-center gap-1.5 bg-primary text-white font-semibold px-5 py-2 rounded-lg hover:bg-primary-dark transition-colors cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Sparkles className="w-4 h-4" />
+              Generate Deep Analysis
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function InvestmentMetrics({ analysis, goal, market, listing, score }: InvestmentMetricsProps) {
+  const [loadedNarrative, setLoadedNarrative] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   if (!analysis) return null
   const { universal, rental, long_term, flip, house_hack, str_metrics } = analysis
-  const ai = analysis.ai_analysis
+
+  // The search endpoint no longer runs Sonnet; it returns ai_analysis with
+  // assumptions but ai_available=false. The user triggers the narrative from
+  // this component — once loaded, we merge it into the rendered `ai` object.
+  const baseAi = analysis.ai_analysis
+  const ai = loadedNarrative
+    ? { ...baseAi, ...loadedNarrative }
+    : baseAi
   const assumptions = ai?.assumptions
+
+  async function handleGenerateNarrative() {
+    if (!listing?.id) return
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await fetchNarrative(listing.id, goal)
+      setLoadedNarrative(data)
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : 'Failed to generate analysis. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const listPrice = listing?.list_price || 0
   const downPct = listPrice > 0 ? Math.round((universal.down_payment_amount / listPrice) * 100) : 20
@@ -172,6 +259,15 @@ export default function InvestmentMetrics({ analysis, goal, market, listing }: I
 
   return (
     <div className="space-y-4">
+      {!ai?.ai_available && (
+        <DeepAnalysisCTA
+          score={score ?? null}
+          onGenerate={handleGenerateNarrative}
+          loading={loading}
+          error={error}
+        />
+      )}
+
       {ai?.ai_available && ai.investment_narrative && (
         <AiSection
           title={

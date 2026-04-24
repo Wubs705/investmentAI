@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 # Max output tokens. Assumptions are short JSON; narrative is prose.
 ASSUMPTIONS_MAX_TOKENS = 512
-NARRATIVE_MAX_TOKENS = 4096
+NARRATIVE_MAX_TOKENS = 2000
 
 
 # ----------------------------------------------------------------------
@@ -363,6 +363,8 @@ class AIService:
         market: MarketSnapshot,
         goal: InvestmentGoal,
         assumptions: AIAssumptions | None,
+        heat_score: int | None = None,
+        heat_components: dict[str, int] | None = None,
     ) -> AIAnalysis:
         """Generate the qualitative narrative based on Python-calculated metrics.
 
@@ -379,7 +381,10 @@ class AIService:
             return AIAnalysis(assumptions=assumptions, ai_available=False)
 
         try:
-            user_content = self._build_narrative_user(listing, analysis, market, goal, assumptions)
+            user_content = self._build_narrative_user(
+                listing, analysis, market, goal, assumptions,
+                heat_score=heat_score, heat_components=heat_components,
+            )
             client = self._get_client()
 
             response = await client.messages.create(
@@ -482,6 +487,8 @@ class AIService:
         market: MarketSnapshot,
         goal: InvestmentGoal,
         assumptions: AIAssumptions | None,
+        heat_score: int | None = None,
+        heat_components: dict[str, int] | None = None,
     ) -> str:
         goal_label = {
             InvestmentGoal.LONG_TERM: "Long-Term Buy & Hold",
@@ -546,6 +553,39 @@ class AIService:
             for risk in analysis.risks:
                 risks_section += f"  - [{risk.type}] {risk.message}\n"
 
+        # Heat-score block: only inject when we have one. The few-shot is shown
+        # only at extreme scores so Sonnet doesn't waste tokens narrating an
+        # average market — the goal is to surface signal, not to comment on
+        # everything.
+        heat_section = ""
+        if heat_score is not None:
+            comps = heat_components or {}
+            comp_lines = "\n".join(
+                f"  - {k}: {v}/100" for k, v in comps.items()
+            ) if comps else "  - components unavailable"
+            heat_section = (
+                f"=== MARKET HEAT (P4) ===\n"
+                f"Heat Score: {heat_score}/100 (goal-weighted blend of rent growth, "
+                f"unemployment, population growth, and median days-on-market)\n"
+                f"Sub-scores:\n{comp_lines}\n"
+            )
+            if heat_score >= 75:
+                heat_section += (
+                    "\nNOTE: Heat is high — add ONE concise contextual sentence in "
+                    "`investment_narrative.narrative` that ties this hot market to the "
+                    "deal's risk/return profile. Example tone:\n"
+                    '  "This market is running hot — rent growth and listing velocity '
+                    'mean any pricing missteps trigger bidding wars rather than longer carry."\n'
+                )
+            elif heat_score <= 30:
+                heat_section += (
+                    "\nNOTE: Heat is low — add ONE concise contextual sentence in "
+                    "`investment_narrative.narrative` flagging the cool market and what "
+                    "it implies for negotiation leverage and exit timing. Example tone:\n"
+                    '  "The market is soft — slow listing turnover and weak rent growth '
+                    'give you negotiating room on price but extend the realistic exit horizon."\n'
+                )
+
         return f"""\
 === INVESTMENT STRATEGY ===
 {goal_label}
@@ -562,6 +602,7 @@ class AIService:
 === MARKET DATA ({listing.city}, {listing.state}) ===
 {self._market_block(market)}
 
+{heat_section}
 {risks_section}
 """
 

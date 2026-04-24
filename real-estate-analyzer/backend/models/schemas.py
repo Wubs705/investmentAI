@@ -340,11 +340,18 @@ class PropertyAnalysis(BaseModel):
     risks: list[RiskFactor] = Field(default_factory=list)
 
 
+class HeatScore(BaseModel):
+    score: int = Field(ge=0, le=100)
+    components: dict[str, int] = Field(default_factory=dict)
+
+
 class InvestmentScore(BaseModel):
     overall_score: int = Field(ge=0, le=100)
     component_scores: dict[str, float] = Field(default_factory=dict)
     grade: str
     summary: str = ""
+    heat_score: int | None = Field(default=None, ge=0, le=100)
+    heat_score_components: dict[str, int] = Field(default_factory=dict)
 
 
 class PropertyResult(BaseModel):
