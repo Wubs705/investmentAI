@@ -127,11 +127,13 @@ export default function PropertyDetailPage() {
         </div>
 
         {/* Photo dots */}
-        <div className="absolute bottom-4 right-4 flex gap-1">
-          {[0, 1, 2, 3].map((i) => (
-            <span key={i} className={`w-2 h-2 rounded-full ${i === 0 ? 'bg-white' : 'bg-white/50'}`} />
-          ))}
-        </div>
+        {listing.photos?.length > 1 && (
+          <div className="absolute bottom-4 right-4 flex gap-1">
+            {listing.photos.slice(0, 5).map((_: string, i: number) => (
+              <span key={i} className={`w-2 h-2 rounded-full ${i === 0 ? 'bg-white' : 'bg-white/50'}`} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Main content */}
