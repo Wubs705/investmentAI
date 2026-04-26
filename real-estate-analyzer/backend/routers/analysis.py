@@ -32,7 +32,15 @@ async def _fetch_property_data(property_id: str, user_id: str | None = None) -> 
         if not response.data:
             raise HTTPException(status_code=404, detail=f"Property {property_id} not found.")
         raw = response.data[0]["data"]
-        return raw if isinstance(raw, dict) else json.loads(raw)
+        if isinstance(raw, dict):
+            return raw
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Malformed property data for {property_id}: {exc}",
+            )
     else:
         async with async_session() as session:
             result = await session.execute(
@@ -41,7 +49,13 @@ async def _fetch_property_data(property_id: str, user_id: str | None = None) -> 
             record = result.scalar_one_or_none()
             if not record:
                 raise HTTPException(status_code=404, detail=f"Property {property_id} not found.")
-            return json.loads(record.data)
+            try:
+                return json.loads(record.data)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Malformed property data for {property_id}: {exc}",
+                )
 
 
 async def _fetch_latest_analysis_data(property_id: str, user_id: str | None = None) -> dict | None:
@@ -61,7 +75,15 @@ async def _fetch_latest_analysis_data(property_id: str, user_id: str | None = No
         if not response.data:
             return None
         raw = response.data[0]["data"]
-        return raw if isinstance(raw, dict) else json.loads(raw)
+        if isinstance(raw, dict):
+            return raw
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Malformed analysis data for property {property_id}: {exc}",
+            )
     else:
         async with async_session() as session:
             result = await session.execute(
@@ -73,7 +95,13 @@ async def _fetch_latest_analysis_data(property_id: str, user_id: str | None = No
             record = result.scalar_one_or_none()
             if not record:
                 return None
-            return json.loads(record.data)
+            try:
+                return json.loads(record.data)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Malformed analysis data for property {property_id}: {exc}",
+                )
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
