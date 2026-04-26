@@ -1,6 +1,10 @@
+import logging
+import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_config_log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -84,3 +88,19 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# H9 — Warn loudly when SQLite is used outside a development environment.
+# Check both a conventional ENVIRONMENT variable and DEBUG flag so any
+# deployment pattern is covered.
+_env = os.environ.get("ENVIRONMENT", "").lower()
+_debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
+if "sqlite" in settings.database_url and _env not in ("development", "dev", "local") and not _debug:
+    _config_log.warning(
+        "DATABASE_URL is set to a local SQLite file (%s) but the application does not "
+        "appear to be running in development mode (ENVIRONMENT=%r, DEBUG=%r). "
+        "Set DATABASE_URL to a production-grade database or set ENVIRONMENT=development "
+        "to suppress this warning.",
+        settings.database_url,
+        _env or "<unset>",
+        _debug,
+    )
