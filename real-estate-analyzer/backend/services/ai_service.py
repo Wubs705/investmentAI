@@ -36,6 +36,7 @@ from backend.models.schemas import (
     PropertyAnalysis,
     PropertyListing,
 )
+from backend.services.rehab_cost_index import RehabCostIndex
 
 logger = logging.getLogger(__name__)
 
@@ -314,6 +315,7 @@ class AIService:
         listing: PropertyListing,
         market: MarketSnapshot,
         comps: CompAnalysis,
+        rehab_index: RehabCostIndex | None = None,
     ) -> AIAssumptions | None:
         """Ask Haiku to produce numerical underwriting assumptions.
 
@@ -329,7 +331,7 @@ class AIService:
             return None
 
         try:
-            user_content = self._build_assumptions_user(listing, market, comps)
+            user_content = self._build_assumptions_user(listing, market, comps, rehab_index=rehab_index)
             client = self._get_client()
 
             response = await client.messages.create(
@@ -468,7 +470,21 @@ class AIService:
         listing: PropertyListing,
         market: MarketSnapshot,
         comps: CompAnalysis,
+        rehab_index: RehabCostIndex | None = None,
     ) -> str:
+        local_cost_note = ""
+        if rehab_index and rehab_index.confidence in ("high", "medium"):
+            local_cost_note = (
+                f"\n\n### Local Construction Cost Index (calibrated)\n"
+                f"Based on BLS labor data and local permit history for this metro:\n"
+                f"- Cosmetic scope: ~${rehab_index.cosmetic_per_sqft:.0f}/sqft\n"
+                f"- Moderate scope: ~${rehab_index.moderate_per_sqft:.0f}/sqft\n"
+                f"- Full gut scope: ~${rehab_index.full_gut_per_sqft:.0f}/sqft\n"
+                f"- Labor index vs national avg: {rehab_index.labor_index:.2f}x\n"
+                f"- Permit data sample: {rehab_index.permit_sample_size} records\n"
+                f"Use these local figures instead of the national benchmarks above "
+                f"when estimating rehab cost for this property.\n"
+            )
         return f"""\
 === PROPERTY DETAILS ===
 {self._property_block(listing)}
@@ -477,8 +493,7 @@ class AIService:
 {self._comps_block(comps)}
 
 === MARKET DATA ({listing.city}, {listing.state}) ===
-{self._market_block(market)}
-"""
+{self._market_block(market)}{local_cost_note}"""
 
     def _build_narrative_user(
         self,

@@ -164,6 +164,51 @@ export default function MarketOverview({ market }: MarketOverviewProps) {
       {/* Price history chart */}
       <PriceChart history={price_trends.price_history} />
 
+      {/* Local Construction Costs */}
+      {market.rehab_cost_calibration && (
+        <div className="glass-surface overflow-hidden">
+          <div className="px-4 py-3 bg-slate-800/40 border-b border-slate-700/30 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text-primary">Local Construction Costs</h3>
+            {market.rehab_cost_calibration.confidence === 'high' && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-700/40">High confidence</span>
+            )}
+            {market.rehab_cost_calibration.confidence === 'medium' && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-700/40">Medium confidence</span>
+            )}
+            {market.rehab_cost_calibration.confidence === 'low' && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700/60 text-text-muted border border-slate-600/40">Estimated</span>
+            )}
+          </div>
+          <div className="divide-y divide-slate-700/30">
+            {[
+              { label: 'Cosmetic rehab', val: market.rehab_cost_calibration.cosmetic_per_sqft },
+              { label: 'Moderate rehab', val: market.rehab_cost_calibration.moderate_per_sqft },
+              { label: 'Full gut rehab', val: market.rehab_cost_calibration.full_gut_per_sqft },
+            ].map((r) => (
+              <div key={r.label} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                <span className="text-text-secondary">{r.label}</span>
+                <span className="font-semibold text-text-primary">~${Math.round(r.val)}/sqft</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+              <span className="text-text-secondary">Labor vs national avg</span>
+              <span className="font-semibold text-text-primary">
+                {market.rehab_cost_calibration.labor_index.toFixed(2)}×
+                {market.rehab_cost_calibration.labor_index > 1.05 && (
+                  <span className="ml-1 text-xs text-amber-400">({Math.round((market.rehab_cost_calibration.labor_index - 1) * 100)}% above avg)</span>
+                )}
+                {market.rehab_cost_calibration.labor_index < 0.95 && (
+                  <span className="ml-1 text-xs text-green-400">({Math.round((1 - market.rehab_cost_calibration.labor_index) * 100)}% below avg)</span>
+                )}
+              </span>
+            </div>
+          </div>
+          <div className="px-4 py-2.5 text-xs text-text-muted border-t border-slate-700/30">
+            Based on: {market.rehab_cost_calibration.data_sources.join(' · ')}
+          </div>
+        </div>
+      )}
+
       {/* Data sources */}
       {market.data_sources_used?.length > 0 && (
         <div className="text-xs text-text-muted">

@@ -11,6 +11,7 @@ from backend.models.schemas import (
     AIAnalysis,
     LocationSuggestion,
     PropertyResult,
+    RehabCostCalibration,
     SearchCriteria,
     SearchResponse,
 )
@@ -20,6 +21,7 @@ from backend.services.comparables import comparables_service
 from backend.services.geocoding import geocoding_service
 from backend.services.market_data import get_heat_score, market_data_service
 from backend.services.property_search import property_search_service
+from backend.services.rehab_cost_index import rehab_cost_index_service
 from backend.utils.cache import cache_service
 from backend.utils.scoring import calculate_investment_score
 
@@ -100,6 +102,19 @@ async def search_properties(
 
     market = await market_data_service.get_market_snapshot(location)
 
+    # Rehab cost index — fetched once per search, shared across all properties
+    rehab_index = await rehab_cost_index_service.get_rehab_cost_index(location)
+    market.rehab_cost_calibration = RehabCostCalibration(
+        cosmetic_per_sqft=rehab_index.cosmetic_per_sqft,
+        moderate_per_sqft=rehab_index.moderate_per_sqft,
+        full_gut_per_sqft=rehab_index.full_gut_per_sqft,
+        labor_index=rehab_index.labor_index,
+        permit_sample_size=rehab_index.permit_sample_size,
+        permit_median_cost_per_sqft=rehab_index.permit_median_cost_per_sqft,
+        data_sources=rehab_index.data_sources,
+        confidence=rehab_index.confidence,
+    )
+
     # Heat score is per (market, goal) — compute once and reuse for every
     # property in this search rather than recomputing inside analyze_one.
     heat = get_heat_score(market, criteria.investment_goal)
@@ -130,6 +145,7 @@ async def search_properties(
             listing=listing,
             market=market,
             comps=comps,
+            rehab_index=rehab_index,
         )
         analysis = analysis_engine.analyze(
             listing=listing,
@@ -138,6 +154,7 @@ async def search_properties(
             comps=comps,
             down_pct=criteria.down_payment_pct,
             ai_assumptions=assumptions,
+            rehab_index=rehab_index,
         )
         score = calculate_investment_score(
             listing,
