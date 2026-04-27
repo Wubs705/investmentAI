@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+/* ============================================
+   CORNICE DESIGN TOKENS — Olive theme
+   ============================================ */
+:root,
+[data-theme="olive"] {
+  --paper:    #EEE8D6;
+  --paper-2:  #E3DCC5;
+  --paper-3:  #D7CFB3;
+  --ink:      #1C1E15;
+  --ink-2:    #34382A;
+  --ink-3:    #6A6E58;
+  --ink-4:    #9FA286;
+  --rule:     #C2BBA0;
+  --rule-soft:#D7CFB3;
+  --accent:   #6B7A42;
+  --accent-ink:#3E4722;
+  --card:     #F6F1DE;
+  --positive: #6B7A42;
+  --negative: #8E4128;
+  --warn:     #B68934;
+}
+
 @theme {
   --color-primary: #006AFF;
   --color-primary-dark: #0059D6;
@@ -30,11 +52,72 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  color: #2A2A33;
-  background: #FFFFFF;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
   min-height: 100vh;
 }
+
+/* Cornice typography utilities */
+.font-serif { font-family: 'Fraunces', Georgia, serif; font-variation-settings: "SOFT" 30; }
+.font-mono  { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+.smallcaps  { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; }
+.tracking-display { letter-spacing: -0.02em; }
+
+/* Cornice hero stripe */
+.hero-stripe::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(125deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 28px);
+  pointer-events: none;
+}
+
+/* Striped placeholder for property photos */
+.photo-stripe {
+  background-image: repeating-linear-gradient(135deg, rgba(30,26,21,0.06) 0 2px, transparent 2px 16px);
+}
+
+/* Cornice buttons */
+.btn-ink {
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: transform .12s ease, background .2s ease;
+  white-space: nowrap;
+  display: inline-block;
+  cursor: pointer;
+}
+.btn-ink:hover { background: var(--ink-2); transform: translateY(-1px); }
+
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity .15s ease;
+  white-space: nowrap;
+  display: inline-block;
+  cursor: pointer;
+}
+.btn-accent:hover { opacity: 0.88; }
+
+/* Cornice card */
+.card-warm {
+  background: var(--card);
+  border: 1px solid var(--rule-soft);
+}
+
+/* Verdict ribbons */
+.verdict-strong { background: var(--positive); }
+.verdict-hold   { background: var(--warn); }
+.verdict-pass   { background: var(--negative); }
 
 /* Scrollbar — light theme */
 ::-webkit-scrollbar { width: 6px; }

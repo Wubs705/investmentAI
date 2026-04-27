@@ -88,7 +88,7 @@ function AppRoutes() {
   const location = useLocation()
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
       <TestModeBanner />
       <AuthModal />
 

@@ -1,98 +1,65 @@
-import { Heart } from 'lucide-react'
-import { formatCurrency } from '../utils/formatters'
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const GOAL_METRICS: Record<string, (a: any) => { label: string; value: string; positive?: boolean }[]> = {
-  rental: (a) => [
-    {
-      label: 'Cash Flow',
-      value: a?.rental?.monthly_cash_flow != null
-        ? `${a.rental.monthly_cash_flow >= 0 ? '+' : ''}${formatCurrency(a.rental.monthly_cash_flow)}/mo`
-        : 'N/A',
-      positive: a?.rental?.monthly_cash_flow >= 0,
-    },
-    {
-      label: 'Cap Rate',
-      value: a?.rental?.cap_rate_pct != null ? `${a.rental.cap_rate_pct.toFixed(1)}%` : 'N/A',
-    },
-  ],
-  long_term: (a) => [
-    {
-      label: '10yr ROI',
-      value: a?.long_term?.total_roi_10yr_pct != null ? `${a.long_term.total_roi_10yr_pct.toFixed(1)}%` : 'N/A',
-    },
-    {
-      label: 'Ann. Return',
-      value: a?.long_term?.annualized_return_pct != null ? `${a.long_term.annualized_return_pct.toFixed(1)}%` : 'N/A',
-    },
-  ],
-  fix_and_flip: (a) => [
-    {
-      label: 'Profit',
-      value: a?.flip?.potential_profit != null ? formatCurrency(a.flip.potential_profit, { compact: true }) : 'N/A',
-    },
-    {
-      label: 'ROI',
-      value: a?.flip?.roi_pct != null ? `${a.flip.roi_pct.toFixed(1)}%` : 'N/A',
-    },
-  ],
+function fmt$(n: number | null | undefined, compact = false): string {
+  if (n == null || !isFinite(n)) return '—'
+  const a = Math.abs(n)
+  const sign = n < 0 ? '−' : ''
+  if (compact && a >= 1_000_000) return `${sign}$${(a / 1_000_000).toFixed(1)}M`
+  if (compact && a >= 1000) return `${sign}$${(a / 1000).toFixed(0)}K`
+  return `${sign}$${a.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
-function scoreLabel(score: number): { color: string; grade: string } {
-  if (score >= 75) return { color: '#008A05', grade: 'A' }
-  if (score >= 60) return { color: '#006AFF', grade: 'B' }
-  if (score >= 45) return { color: '#E8850C', grade: 'C' }
-  return { color: '#D32F2F', grade: 'D' }
+function scoreColor(s: number): string {
+  if (s >= 75) return '#008A05'
+  if (s >= 60) return '#2B5BE8'
+  if (s >= 45) return '#C17D2A'
+  return '#C23B3B'
 }
 
-// Market heat thresholds per spec — distinct from the investment-score colors
-// so users can read "hot market" vs "good deal" independently.
-function heatLabel(score: number): { color: string; label: string } {
-  if (score >= 80) return { color: '#D32F2F', label: 'Hot' }
-  if (score >= 60) return { color: '#E8850C', label: 'Warm' }
-  if (score >= 40) return { color: '#E0B019', label: 'Mild' }
-  return { color: '#7A8290', label: 'Cool' }
+function heatColor(s: number): string {
+  if (s >= 80) return '#C23B3B'
+  if (s >= 60) return '#C17D2A'
+  if (s >= 40) return '#B8A020'
+  return '#6B7A8D'
 }
 
-// Per-component bucket labels keep the tooltip readable without a legend.
-function componentLabel(name: string, value: number): string {
-  if (value >= 70) {
-    return name === 'unemployment'
-      ? 'low'
-      : name === 'dom'
-        ? 'fast'
-        : 'strong'
-  }
-  if (value >= 40) return 'moderate'
-  return name === 'unemployment'
-    ? 'high'
-    : name === 'dom'
-      ? 'slow'
-      : 'weak'
+function heatLabel(s: number): string {
+  if (s >= 80) return 'Hot'
+  if (s >= 60) return 'Warm'
+  if (s >= 40) return 'Mild'
+  return 'Cool'
 }
 
-const HEAT_COMPONENT_LABELS: Record<string, string> = {
-  rent_growth: 'Rent growth',
-  unemployment: 'Unemployment',
-  population: 'Population',
-  dom: 'Days on market',
-}
-
-function buildHeatTooltip(components: Record<string, number> | undefined): string {
-  if (!components) return 'Market heat score — combines rent growth, unemployment, population, and days-on-market.'
-  return Object.entries(components)
-    .map(([k, v]) => `${HEAT_COMPONENT_LABELS[k] ?? k}: ${componentLabel(k, v)}`)
-    .join(' · ')
+function goalMetrics(a: any, goal: string): { label: string; value: string; tone?: 'positive' | 'negative' }[] {
+  if (goal === 'rental' && a?.rental) return [
+    { label: 'Cash Flow', value: a.rental.monthly_cash_flow != null ? `${a.rental.monthly_cash_flow >= 0 ? '+' : ''}${fmt$(a.rental.monthly_cash_flow)}/mo` : 'N/A', tone: a.rental.monthly_cash_flow >= 0 ? 'positive' : 'negative' },
+    { label: 'Cap Rate',  value: a.rental.cap_rate_pct != null ? `${a.rental.cap_rate_pct.toFixed(1)}%` : 'N/A' },
+    { label: 'CoC',       value: a.rental.cash_on_cash_return_pct != null ? `${a.rental.cash_on_cash_return_pct.toFixed(1)}%` : 'N/A' },
+  ]
+  if (goal === 'long_term' && a?.long_term) return [
+    { label: '10yr ROI', value: a.long_term.total_roi_10yr_pct != null ? `${a.long_term.total_roi_10yr_pct.toFixed(1)}%` : 'N/A', tone: 'positive' },
+    { label: 'Ann. Ret.', value: a.long_term.annualized_return_pct != null ? `${a.long_term.annualized_return_pct.toFixed(1)}%` : 'N/A' },
+  ]
+  if (goal === 'fix_and_flip' && a?.flip) return [
+    { label: 'Profit', value: a.flip.potential_profit != null ? fmt$(a.flip.potential_profit, true) : 'N/A', tone: a.flip.potential_profit > 0 ? 'positive' : 'negative' },
+    { label: 'ROI',    value: a.flip.roi_pct != null ? `${a.flip.roi_pct.toFixed(1)}%` : 'N/A' },
+    { label: 'Deal',   value: a.flip.deal_score || 'N/A' },
+  ]
+  if (goal === 'house_hack' && a?.house_hack) return [
+    { label: 'Effective Cost', value: a.house_hack.owner_net_monthly_cost != null ? `${fmt$(a.house_hack.owner_net_monthly_cost)}/mo` : 'N/A' },
+    { label: 'Offset %',      value: a.house_hack.mortgage_offset_pct != null ? `${a.house_hack.mortgage_offset_pct.toFixed(0)}%` : 'N/A', tone: 'positive' },
+  ]
+  if (goal === 'str' && a?.str_metrics) return [
+    { label: 'STR CF',  value: a.str_metrics.monthly_cash_flow != null ? `${fmt$(a.str_metrics.monthly_cash_flow)}/mo` : 'N/A', tone: a.str_metrics.monthly_cash_flow > 0 ? 'positive' : 'negative' },
+    { label: 'Occ.',    value: a.str_metrics.occupancy_rate_pct != null ? `${a.str_metrics.occupancy_rate_pct.toFixed(0)}%` : 'N/A' },
+  ]
+  return []
 }
 
 function getAiInsight(analysis: any): string | null {
   const ai = analysis?.ai_analysis
   if (!ai?.ai_available) return null
-  if (ai.investment_narrative?.key_strengths?.length > 0) {
-    return ai.investment_narrative.key_strengths[0]
-  }
-  return null
+  return ai.investment_narrative?.key_strengths?.[0] ?? null
 }
 
 interface PropertyCardProps {
@@ -107,139 +74,110 @@ interface PropertyCardProps {
 export default function PropertyCard({ result, goal, onClick, isHovered, onMouseEnter, onMouseLeave }: PropertyCardProps) {
   const { listing, analysis, score } = result
   const s: number = score?.overall_score ?? 0
-  const { color: scoreColor } = scoreLabel(s)
   const heatScore: number | null = typeof score?.heat_score === 'number' ? score.heat_score : null
-  const heatComponents: Record<string, number> | undefined = score?.heat_score_components
-  const heatBadge = heatScore != null ? heatLabel(heatScore) : null
-  const heatTooltip = heatScore != null ? `Market Heat ${heatScore} — ${buildHeatTooltip(heatComponents)}` : ''
-  const metricFn = GOAL_METRICS[goal] || GOAL_METRICS.rental
-  const metrics = metricFn(analysis)
+  const metrics = goalMetrics(analysis, goal)
   const aiInsight = getAiInsight(analysis)
   const dom = listing.days_on_market
 
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--card)',
+    border: isHovered ? '1px solid var(--accent)' : '1px solid var(--rule-soft)',
+    borderRadius: 12,
+    overflow: 'hidden',
+    cursor: 'pointer',
+    transition: 'box-shadow .2s, border-color .2s',
+    boxShadow: isHovered ? '0 0 0 2px var(--accent), 0 4px 20px rgba(30,26,21,0.12)' : 'none',
+  }
+
   return (
-    <div
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      className={`bg-white border rounded-xl overflow-hidden cursor-pointer hover:shadow-md transition-all group ${
-        isHovered ? 'border-primary shadow-md ring-2 ring-primary/20' : 'border-border'
-      }`}
-    >
-      {/* Photo */}
-      <div className="relative w-full h-44 bg-gray-100 overflow-hidden">
+    <div style={cardStyle} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onClick={onClick}>
+      {/* Photo / placeholder */}
+      <div style={{ position: 'relative', height: 160, background: 'var(--paper-2)', overflow: 'hidden' }}>
         {listing.photos?.[0] ? (
-          <img
-            src={listing.photos[0]}
-            alt={listing.address}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-          />
+          <img src={listing.photos[0]} alt={listing.address} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-100">
-            <span className="text-4xl opacity-20">🏠</span>
+          <div className="photo-stripe" style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <div style={{ position: 'absolute', bottom: 8, left: 10, fontFamily: 'IBM Plex Mono', fontSize: 9, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+              {listing.property_type || 'Residential'}
+            </div>
           </div>
         )}
 
-        {/* Status badges */}
-        <div className="absolute top-2 left-2 flex gap-1.5">
-          {dom != null && dom <= 3 && (
-            <span className="zillow-badge zillow-badge-green">New</span>
+        {/* Top-left badges */}
+        <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 5 }}>
+          {dom != null && dom <= 7 && (
+            <span style={{ background: 'var(--positive)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, fontFamily: 'IBM Plex Mono' }}>NEW</span>
           )}
-          {listing.source === 'demo' && (
-            <span className="zillow-badge zillow-badge-gray">Demo</span>
+          {listing.source === 'mock' && (
+            <span style={{ background: 'var(--paper-2)', color: 'var(--ink-3)', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, fontFamily: 'IBM Plex Mono', border: '1px solid var(--rule)' }}>DEMO</span>
           )}
         </div>
 
-        {/* Heart + score */}
-        <div className="absolute top-2 right-2 flex items-center gap-1.5">
-          {/* Heat badge — sits left of the investment score so the eye reads
-              "market context" before "deal quality". */}
-          {heatBadge && (
-            <span
-              className="text-white text-xs font-bold px-2 py-0.5 rounded"
-              style={{ background: heatBadge.color }}
-              title={heatTooltip}
-              data-testid="heat-badge"
-            >
-              {heatBadge.label} {heatScore}
+        {/* Top-right: heat + score */}
+        <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+          {heatScore != null && (
+            <span style={{ background: heatColor(heatScore), color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, fontFamily: 'IBM Plex Mono' }}>
+              {heatLabel(heatScore)} {heatScore}
             </span>
           )}
-          {/* Score badge */}
-          <span
-            className="text-white text-xs font-bold px-2 py-0.5 rounded"
-            style={{ background: scoreColor }}
-          >
+          <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', width: 36, height: 36, background: scoreColor(s), color: '#fff', fontWeight: 700, fontSize: 13, lineHeight: 1, fontFamily: 'IBM Plex Mono' }}>
             {s}
           </span>
-          {/* Heart */}
-          <button
-            onClick={(e) => e.stopPropagation()}
-            className="w-7 h-7 bg-white rounded-full flex items-center justify-center shadow hover:bg-gray-50 transition-colors cursor-pointer"
-          >
-            <Heart className="w-3.5 h-3.5 text-gray-500" />
-          </button>
         </div>
       </div>
 
-      {/* Info */}
-      <div className="p-4">
-        {/* Price */}
-        <div className="flex items-start justify-between mb-1">
-          <span className="text-xl font-bold text-text-primary">{formatCurrency(listing.list_price)}</span>
-          {goal === 'rental' && (
-            <span className="text-xs text-text-muted mt-1">Fees may apply</span>
-          )}
+      {/* Body */}
+      <div style={{ padding: '14px 16px' }}>
+        {/* Price + DOM */}
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 3 }}>
+          <div className="font-serif" style={{ fontSize: 22, lineHeight: 1, color: 'var(--ink)' }}>{fmt$(listing.list_price)}</div>
+          {dom != null && <div style={{ fontFamily: 'IBM Plex Mono', fontSize: 10, color: 'var(--ink-3)' }}>{dom}d on mkt</div>}
         </div>
 
-        {/* Beds / Baths / Sqft */}
-        <div className="text-sm text-text-secondary mb-1">
-          <span className="font-medium text-text-primary">{listing.bedrooms} bd</span>
-          <span className="mx-1 text-text-muted">|</span>
-          <span className="font-medium text-text-primary">{listing.bathrooms} ba</span>
-          <span className="mx-1 text-text-muted">|</span>
+        {/* Facts */}
+        <div style={{ fontSize: 12, color: 'var(--ink-2)', marginBottom: 2 }}>
+          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{listing.bedrooms} bd</span>
+          <span style={{ margin: '0 5px', color: 'var(--ink-4)' }}>|</span>
+          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{listing.bathrooms} ba</span>
+          <span style={{ margin: '0 5px', color: 'var(--ink-4)' }}>|</span>
           <span>{listing.sqft?.toLocaleString()} sqft</span>
-          {listing.property_type && (
-            <>
-              <span className="mx-1 text-text-muted">·</span>
-              <span>{listing.property_type}</span>
-            </>
-          )}
         </div>
 
         {/* Address */}
-        <div className="text-sm text-text-secondary truncate mb-3">
-          {listing.address}, {listing.city}, {listing.state} {listing.zip_code}
+        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {listing.address}, {listing.city}, {listing.state}
         </div>
 
-        {/* Investment metrics */}
-        <div className="flex gap-4 pt-3 border-t border-border">
-          {metrics.map((m) => (
-            <div key={m.label} className="flex flex-col">
-              <span className="text-[10px] font-medium text-text-muted uppercase tracking-wide">{m.label}</span>
-              <span className={`text-sm font-semibold ${
-                m.positive === true ? 'text-accent' : m.positive === false ? 'text-danger' : 'text-primary'
-              }`}>
-                {m.value}
-              </span>
-            </div>
-          ))}
-          {dom != null && (
-            <div className="flex flex-col ml-auto text-right">
-              <span className="text-[10px] font-medium text-text-muted uppercase tracking-wide">On market</span>
-              <span className="text-sm text-text-secondary">{dom}d</span>
-            </div>
-          )}
-        </div>
+        {/* Goal metrics */}
+        {metrics.length > 0 && (
+          <div style={{ display: 'flex', gap: 14, paddingTop: 10, borderTop: '1px solid var(--rule-soft)', marginBottom: aiInsight ? 10 : 0 }}>
+            {metrics.map((m) => (
+              <div key={m.label}>
+                <div className="smallcaps" style={{ color: 'var(--ink-4)', marginBottom: 2 }}>{m.label}</div>
+                <div style={{ fontFamily: 'IBM Plex Mono', fontSize: 13, fontWeight: 600, color: m.tone === 'positive' ? 'var(--positive)' : m.tone === 'negative' ? 'var(--negative)' : 'var(--ink-2)' }}>
+                  {m.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* AI insight */}
         {aiInsight && (
-          <div className="mt-2 pt-2 border-t border-border">
-            <span className="text-[11px] text-primary font-medium">
-              ✦ {aiInsight}
-            </span>
+          <div style={{ fontSize: 12, color: 'var(--accent)', paddingTop: 8, borderTop: '1px solid var(--rule-soft)', fontWeight: 500 }}>
+            ✦ {aiInsight}
           </div>
         )}
+
+        {/* View button */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onClick() }}
+          style={{ width: '100%', marginTop: 12, padding: '8px 0', background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'opacity .15s' }}
+          onMouseOver={(e) => ((e.currentTarget as HTMLElement).style.opacity = '0.88')}
+          onMouseOut={(e) => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+        >
+          View deep analysis →
+        </button>
       </div>
     </div>
   )
