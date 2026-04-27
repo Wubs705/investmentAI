@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     # Optional market-data providers
     census_api_key: str = ""
+    bls_api_key: str = ""   # Register free at https://data.bls.gov/registrationEngine/
 
     # API authentication — clients must send this key in the X-API-Key header
     api_auth_key: str = ""
@@ -85,6 +86,10 @@ class Settings(BaseSettings):
     @property
     def has_census_key(self) -> bool:
         return bool(self.census_api_key)
+
+    @property
+    def has_bls_key(self) -> bool:
+        return bool(self.bls_api_key)
 
 
 settings = Settings()

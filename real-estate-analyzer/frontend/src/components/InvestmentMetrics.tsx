@@ -409,7 +409,15 @@ export default function InvestmentMetrics({ analysis, goal, market, listing, sco
         <Section title="Fix & Flip Analysis">
           <MetricRow label="ARV (After-Repair Value)" value={formatCurrency(flip.arv)} hint="Estimated post-renovation market value" />
           <MetricRow label="Rehab Scope" value={flip.rehab_scope ?? 'N/A'} hint={flip.rehab_cost_per_sqft ? `~$${flip.rehab_cost_per_sqft}/sqft` : null} />
-          <MetricRow label="Estimated Rehab Cost" value={formatCurrency(flip.estimated_rehab_cost)} />
+          <MetricRow
+            label="Estimated Rehab Cost"
+            value={formatCurrency(flip.estimated_rehab_cost)}
+            hint={
+              market?.rehab_cost_calibration && market.rehab_cost_calibration.confidence !== 'low'
+                ? `Based on ${market.rehab_cost_calibration.data_sources.join(' + ')}${market.rehab_cost_calibration.permit_sample_size > 0 ? ` (${market.rehab_cost_calibration.permit_sample_size} permits)` : ''}, ${market.rehab_cost_calibration.labor_index.toFixed(2)}× labor premium`
+                : 'AI estimated'
+            }
+          />
           <MetricRow label="Maximum Allowable Offer" value={formatCurrency(flip.mao)} hint="ARV x 70% - Rehab (the 70% rule)" colorClass="text-primary" />
           <MetricRow label="Deal Score" value={flip.deal_score ?? 'N/A'}
             colorClass={flip.deal_score === 'Strong Deal' ? 'text-accent' : flip.deal_score === 'Good Deal' ? 'text-accent' : flip.deal_score === 'Marginal' ? 'text-warning' : 'text-danger'} />

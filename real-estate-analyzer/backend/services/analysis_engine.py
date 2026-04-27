@@ -28,6 +28,7 @@ from backend.models.schemas import (
     ShortTermRentalMetrics,
     UniversalMetrics,
 )
+from backend.services.rehab_cost_index import RehabCostIndex
 
 
 # --- UNDERWRITING CONSTANTS -------------------------------------------------
@@ -224,6 +225,7 @@ def _compute_rental_metrics(
     universal: UniversalMetrics,
     market: MarketSnapshot,
     ai_assumptions: AIAssumptions | None = None,
+    rehab_index: RehabCostIndex | None = None,
 ) -> RentalMetrics:
     """Compute cash flow, cap rate, GRM, DSCR, and other rental metrics."""
     # Prefer AI-estimated rent; fall back to market-derived estimate
@@ -251,16 +253,17 @@ def _compute_rental_metrics(
     vacancy_loss = estimated_rent * vacancy_rate
     effective_gross_rent = estimated_rent - vacancy_loss
 
-    # §3 Split maintenance and capex
+    # §3 Split maintenance and capex — scaled by local labor index when available
+    labor_idx = rehab_index.labor_index if rehab_index else 1.0
     if ai_assumptions and ai_assumptions.maintenance_reserve_pct is not None:
         maintenance_monthly = price * (ai_assumptions.maintenance_reserve_pct / 100) / 12
     else:
-        maintenance_monthly = price * DEFAULT_MAINTENANCE_PCT / 12
+        maintenance_monthly = price * DEFAULT_MAINTENANCE_PCT * labor_idx / 12
 
     if ai_assumptions and ai_assumptions.capex_reserve_pct is not None:
         capex_monthly = price * (ai_assumptions.capex_reserve_pct / 100) / 12
     else:
-        capex_monthly = price * DEFAULT_CAPEX_PCT / 12
+        capex_monthly = price * DEFAULT_CAPEX_PCT * labor_idx / 12
 
     # §11 Property management on effective gross rent, not gross rent
     if ai_assumptions and ai_assumptions.property_manager_fee_pct is not None:
@@ -393,6 +396,7 @@ def _compute_long_term_metrics(
     market: MarketSnapshot,
     ai_assumptions: AIAssumptions | None = None,
     rental: RentalMetrics | None = None,
+    rehab_index: RehabCostIndex | None = None,
 ) -> LongTermMetrics:
     """Compute 5/10-year appreciation, equity, and ROI projections."""
     # Allow AI override of appreciation rate
@@ -593,6 +597,7 @@ def _compute_flip_metrics(
     market: MarketSnapshot,
     comps: CompAnalysis,
     ai_assumptions: AIAssumptions | None = None,
+    rehab_index: RehabCostIndex | None = None,
 ) -> FlipMetrics:
     """Compute ARV, MAO, rehab cost, and profit for a fix-and-flip strategy.
 
@@ -614,22 +619,25 @@ def _compute_flip_metrics(
     age = datetime.now().year - year_built
     price_vs_arv_gap_pct = ((arv - price) / arv * 100) if arv > 0 else 0
 
-    # §5 Updated rehab $/sqft, with optional HCOL scaling
+    # §5 Rehab $/sqft — use calibrated local index when available, else constants
+    if rehab_index:
+        _full_gut = rehab_index.full_gut_per_sqft
+        _moderate = rehab_index.moderate_per_sqft
+        _cosmetic = rehab_index.cosmetic_per_sqft
+    else:
+        _full_gut = REHAB_COST_FULL_GUT_PER_SQFT
+        _moderate = REHAB_COST_MODERATE_PER_SQFT
+        _cosmetic = REHAB_COST_COSMETIC_PER_SQFT
+
     if age > 50 or price_vs_arv_gap_pct > 30:
         scope = "Full Gut"
-        rehab_ppsf = REHAB_COST_FULL_GUT_PER_SQFT
+        rehab_ppsf = _full_gut
     elif age > 30 or price_vs_arv_gap_pct > 15:
         scope = "Moderate"
-        rehab_ppsf = REHAB_COST_MODERATE_PER_SQFT
+        rehab_ppsf = _moderate
     else:
         scope = "Cosmetic"
-        rehab_ppsf = REHAB_COST_COSMETIC_PER_SQFT
-
-    # HCOL scaling (§5 optional improvement) — guarded within [0.75, 1.5]
-    median_income = market.demographics.median_household_income
-    if median_income:
-        col_factor = max(0.75, min(1.5, median_income / 70000))
-        rehab_ppsf *= col_factor
+        rehab_ppsf = _cosmetic
 
     # Rehab cost: AI override > sqft × per-sqft heuristic
     if ai_assumptions and ai_assumptions.estimated_rehab_cost:
@@ -1172,6 +1180,7 @@ class AnalysisEngine:
         comps: CompAnalysis,
         down_pct: float = 20.0,
         ai_assumptions: AIAssumptions | None = None,
+        rehab_index: RehabCostIndex | None = None,
     ) -> PropertyAnalysis:
         """
         Run full analysis for all three investment strategies.
@@ -1180,6 +1189,9 @@ class AnalysisEngine:
         When `ai_assumptions` is provided, the engine substitutes the AI's
         property-specific rehab, rent, vacancy, maintenance, ARV, and
         insurance figures in place of the default heuristics.
+
+        When `rehab_index` is provided, calibrated local $/sqft values replace
+        the hardcoded national constants and the median-income HCOL proxy.
         """
         universal = _compute_universal_metrics(
             listing, market, comps, down_pct, ai_assumptions=ai_assumptions
@@ -1193,12 +1205,12 @@ class AnalysisEngine:
 
         if goal == InvestmentGoal.LONG_TERM:
             long_term = _compute_long_term_metrics(
-                listing, universal, market, ai_assumptions=ai_assumptions
+                listing, universal, market, ai_assumptions=ai_assumptions, rehab_index=rehab_index
             )
         elif goal == InvestmentGoal.RENTAL:
-            rental = _compute_rental_metrics(listing, universal, market, ai_assumptions=ai_assumptions)
+            rental = _compute_rental_metrics(listing, universal, market, ai_assumptions=ai_assumptions, rehab_index=rehab_index)
         elif goal == InvestmentGoal.FIX_AND_FLIP:
-            flip = _compute_flip_metrics(listing, universal, market, comps, ai_assumptions=ai_assumptions)
+            flip = _compute_flip_metrics(listing, universal, market, comps, ai_assumptions=ai_assumptions, rehab_index=rehab_index)
         elif goal == InvestmentGoal.HOUSE_HACK:
             house_hack = _compute_house_hack_metrics(listing, universal, market, ai_assumptions=ai_assumptions)
         elif goal == InvestmentGoal.SHORT_TERM_RENTAL:

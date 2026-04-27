@@ -140,6 +140,17 @@ class EconomicIndicators(BaseModel):
     median_price_per_sqft: float | None = None
 
 
+class RehabCostCalibration(BaseModel):
+    cosmetic_per_sqft: float
+    moderate_per_sqft: float
+    full_gut_per_sqft: float
+    labor_index: float
+    permit_sample_size: int
+    permit_median_cost_per_sqft: float | None
+    data_sources: list[str]
+    confidence: str   # "high" | "medium" | "low"
+
+
 class MarketSnapshot(BaseModel):
     location: NormalizedLocation | None = None
     price_trends: PriceTrends = Field(default_factory=PriceTrends)
@@ -148,6 +159,7 @@ class MarketSnapshot(BaseModel):
     economic_indicators: EconomicIndicators = Field(default_factory=EconomicIndicators)
     data_sources_used: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    rehab_cost_calibration: RehabCostCalibration | None = None
 
 
 # Analysis result schemas
