@@ -3,9 +3,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
 const NAV_LINKS = [
-  { to: '/', label: 'Search' },
-  { to: '/market', label: 'Market Data' },
-  { to: '/how-it-works', label: 'How It Works' },
+  { to: '/market',       label: 'Markets' },
+  { to: '/how-it-works', label: 'How it works' },
 ]
 
 interface NavbarProps {
@@ -18,47 +17,53 @@ export default function Navbar({ compact, searchSummary }: NavbarProps) {
   const { user, signOut, setShowAuthModal } = useAuth()
 
   return (
-    <nav className="zillow-nav sticky top-0 z-30">
-      <div className="max-w-[1440px] mx-auto px-6 flex items-center justify-between h-14">
-        {/* Left links */}
-        <div className="hidden md:flex items-center gap-6">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.label}
-              to={link.to}
-              className={`text-sm font-medium transition-colors whitespace-nowrap ${
-                pathname === link.to ? 'text-primary' : 'text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
-
-        {/* Center logo */}
-        <Link
-          to="/"
-          className="absolute left-1/2 -translate-x-1/2 text-xl font-bold text-primary flex-shrink-0"
-        >
-          InvestmentAI
+    <nav style={{ background: 'var(--paper)', borderBottom: '1px solid var(--rule-soft)', position: 'sticky', top: 0, zIndex: 30 }}>
+      <div className="max-w-[1440px] mx-auto px-8 flex items-center justify-between h-14">
+        {/* Logo */}
+        <Link to="/" className="flex items-baseline gap-2" style={{ textDecoration: 'none' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M4 11 L12 4 L20 11 L20 20 L14 20 L14 14 L10 14 L10 20 L4 20 Z" stroke="var(--ink)" strokeWidth="1.5" strokeLinejoin="round"/>
+            <circle cx="12" cy="4" r="1.2" fill="var(--accent)"/>
+          </svg>
+          <span className="font-serif tracking-display" style={{ fontSize: 18, color: 'var(--ink)', letterSpacing: '0.02em' }}>Cornice</span>
         </Link>
 
-        {/* Right — auth state */}
-        <div className="flex items-center gap-4 ml-auto">
-          {compact && searchSummary && (
-            <span className="hidden lg:block text-sm text-text-muted truncate max-w-xs">
+        {/* Center — search summary (compact mode) or nav links */}
+        <div className="hidden md:flex items-center gap-6">
+          {compact && searchSummary ? (
+            <span style={{ fontFamily: 'IBM Plex Mono', fontSize: 11, color: 'var(--ink-3)', maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {searchSummary}
             </span>
+          ) : (
+            NAV_LINKS.map((link) => (
+              <Link
+                key={link.label}
+                to={link.to}
+                style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: pathname === link.to ? 'var(--ink)' : 'var(--ink-3)',
+                  textDecoration: 'none',
+                  transition: 'color .15s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {link.label}
+              </Link>
+            ))
           )}
+        </div>
 
+        {/* Right — auth */}
+        <div className="flex items-center gap-3">
           {supabase && user ? (
             <div className="flex items-center gap-3">
-              <span className="hidden sm:block text-sm text-gray-500 truncate max-w-[140px]">
+              <span className="hidden sm:block" style={{ fontSize: 13, color: 'var(--ink-3)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {user.email}
               </span>
               <button
                 onClick={() => signOut()}
-                className="text-sm font-semibold bg-gray-100 text-gray-700 px-4 py-1.5 rounded-full hover:bg-gray-200 transition-colors"
+                style={{ fontSize: 13, fontWeight: 500, background: 'var(--paper-2)', color: 'var(--ink-2)', border: '1px solid var(--rule)', borderRadius: 999, padding: '5px 14px', cursor: 'pointer' }}
               >
                 Sign out
               </button>
@@ -66,7 +71,7 @@ export default function Navbar({ compact, searchSummary }: NavbarProps) {
           ) : (
             <button
               onClick={() => setShowAuthModal(true)}
-              className="text-sm font-semibold bg-text-primary text-white px-4 py-1.5 rounded-full hover:bg-text-primary/90 transition-colors"
+              style={{ fontSize: 13, fontWeight: 600, background: 'var(--ink)', color: 'var(--paper)', border: 'none', borderRadius: 999, padding: '6px 16px', cursor: 'pointer' }}
             >
               Sign in
             </button>
